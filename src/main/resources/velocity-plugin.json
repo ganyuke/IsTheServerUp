@@ -1,0 +1,11 @@
+{
+  "id": "istheserverup",
+  "name": "IsTheServerUp",
+  "version": "${version}",
+  "main": "io.github.ganyuke.istheserverup.IsTheServerUp",
+  "description": "Expose the health status of individual backend servers for the uptime monitor of your choice.",
+  "url": "https://github.com/ganyuke/IsTheServerUp",
+  "authors": [
+    "ganyuke"
+  ]
+}
