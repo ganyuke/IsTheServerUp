@@ -6,13 +6,13 @@ import org.spongepowered.configurate.objectmapping.meta.Setting;
 
 @ConfigSerializable
 public class PluginConfig {
-    @Setting("webserver-address")
-    @Comment("The IP and port the web server will bind to.")
-    private String webserverAddress = "127.0.0.1:8080";
+    @Setting("bind-address")
+    @Comment("The IP the web server will bind to.")
+    private String bindAddress = "127.0.0.1";
 
-    @Setting("webserver-threads")
-    @Comment("The number of worker threads allocated for handling incoming HTTP requests.")
-    private int webserverThreads = 4;
+    @Setting("bind-port")
+    @Comment("The port the web server will bind to.")
+    private int bindPort = 8080;
 
     @Setting("webserver-shutdown-delay-seconds")
     @Comment("Maximum time (in seconds) to wait for active requests to finish when stopping the web server.")
@@ -38,12 +38,12 @@ public class PluginConfig {
     @Comment("How long to wait (in milliseconds) for a backend server to respond to a ping before timing out.")
     private int pingTimeout = 1000;
 
-    public String getWebServerAddress() {
-        return webserverAddress;
+    public String getBindAddress() {
+        return bindAddress;
     }
 
-    public int getWebserverThreads() {
-        return webserverThreads;
+    public int getBindPort() {
+        return bindPort;
     }
 
     public int getWebserverShutdownDelaySeconds() {

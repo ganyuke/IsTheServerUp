@@ -66,33 +66,14 @@ public class IsTheServerUp {
     }
 
     private void startWebServer() {
-        String addressStr = config.getWebServerAddress();
-        String[] parts = addressStr.split(":");
-
-        String host = parts[0];
-        int port = 8080;
-
-        if (parts.length > 1) {
-            try {
-                int parsedPort = Integer.parseInt(parts[1]);
-                if (parsedPort < 0 || parsedPort > 65535) {
-                    logger.warn("Invalid webserver port '{}'. Falling back to {}.", parsedPort, port);
-                } else {
-                    port = parsedPort;
-                }
-            } catch (NumberFormatException e) {
-                logger.warn("Non-numeric webserver port '{}'. Falling back to {}.", parts[1], port);
-            }
-        }
-
         try {
-            InetSocketAddress bindAddress = new InetSocketAddress(host, port);
+            InetSocketAddress bindAddress = new InetSocketAddress(config.getBindAddress(), config.getBindPort());
             webServer = new BackendHealthWebServer(proxy, bindAddress, config);
             webServer.start();
-            logger.info("Backend health webserver started on {}:{}", host, port);
+            logger.info("Backend health webserver started on {}:{}", config.getBindAddress(), config.getBindPort());
         } catch (IOException e) {
             if (e instanceof java.net.BindException) {
-                logger.error("Failed to start backend health webserver: unable to bind to port {} - is it already in use?", port);
+                logger.error("Failed to start backend health webserver: unable to bind to port {} - is it already in use?", config.getBindPort());
             } else {
                 logger.error("Failed to start backend health webserver", e);
             }

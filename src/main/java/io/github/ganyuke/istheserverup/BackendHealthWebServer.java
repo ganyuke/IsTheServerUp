@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public final class BackendHealthWebServer {
     private final ProxyServer proxyServer;
@@ -26,9 +27,25 @@ public final class BackendHealthWebServer {
     // hashmaps for caching backend status so
     // you can't spam the crap out of the backend
     private final ConcurrentHashMap<String, CachedStatus> cache = new ConcurrentHashMap<>();
-    private record CachedStatus(CompletableFuture<BackendStatus> future, long expiresAt) {
-        public boolean isValid() {
+
+    private static final class CachedStatus {
+        private final CompletableFuture<BackendStatus> future;
+        private volatile long expiresAt = Long.MAX_VALUE; // set to max to force other threads to wait for the ping to complete
+
+        CachedStatus(CompletableFuture<BackendStatus> future) {
+            this.future = future;
+        }
+
+        CompletableFuture<BackendStatus> future() {
+            return future;
+        }
+
+        boolean isValid() {
             return System.currentTimeMillis() <= expiresAt;
+        }
+
+        void markCompleted(long cacheDurationMs) {
+            expiresAt = System.currentTimeMillis() + cacheDurationMs;
         }
     }
 
@@ -36,11 +53,9 @@ public final class BackendHealthWebServer {
         this.proxyServer = proxyServer;
         this.pluginConfig = config;
 
-        this.executor = Executors.newFixedThreadPool(config.getWebserverThreads(), runnable -> {
-            Thread thread = new Thread(runnable, "itsu-velocity-health-webserver");
-            thread.setDaemon(true);
-            return thread;
-        });
+        this.executor = Executors.newThreadPerTaskExecutor(
+                Thread.ofVirtual().name("itsu-velocity-health-webserver-", 0).factory()
+        );
 
         this.pingOptions = PingOptions.builder().timeout(Duration.ofMillis(config.getPingTimeout())).build();
 
@@ -65,8 +80,22 @@ public final class BackendHealthWebServer {
     }
 
     public void stop() {
-        httpServer.stop(pluginConfig.getWebserverShutdownDelaySeconds());
-        executor.shutdownNow();
+        int delaySeconds = pluginConfig.getWebserverShutdownDelaySeconds();
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(delaySeconds);
+
+        httpServer.stop(delaySeconds);
+
+        // attempt to gracefully shutdown the executor assuming there is time left
+        executor.shutdown();
+        try {
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0 || !executor.awaitTermination(remainingNanos, TimeUnit.NANOSECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void handleHealthRequest(HttpExchange exchange) throws IOException {
@@ -130,7 +159,10 @@ public final class BackendHealthWebServer {
                     .thenApply(ping -> BackendStatus.up(name))
                     .exceptionally(error -> BackendStatus.down(name));
 
-            return new CachedStatus(freshPing, System.currentTimeMillis() + pluginConfig.getPingCacheDuration());
+            CachedStatus status = new CachedStatus(freshPing);
+            freshPing.whenComplete((result, error) ->
+                    status.markCompleted(pluginConfig.getPingCacheDuration()));
+            return status;
         }).future();
     }
 
