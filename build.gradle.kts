@@ -1,6 +1,5 @@
 plugins {
     id("java-library")
-    id("com.gradleup.shadow") version "9.4.3"
     id("xyz.jpenilla.run-velocity") version "3.0.2"
 }
 
@@ -19,7 +18,7 @@ java {
 
 tasks {
     build {
-        dependsOn(shadowJar)
+        dependsOn(jar)
     }
 
     runVelocity {
